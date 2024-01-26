@@ -73,6 +73,10 @@ def train(gpu, args):
     logger = Logger(args.name, scheduler)
     should_keep_training = True
     total_steps = 0
+    flow_coeff = 1.0
+    res_coeff = 1.0
+    flow_coeff_ratios = []
+    res_coeff_ratios = []
 
     while should_keep_training:
         for i_batch, item in enumerate(train_loader):
@@ -109,7 +113,16 @@ def train(gpu, args):
 
                 geo_loss, geo_metrics = losses.geodesic_loss(Ps, poses_est, graph, do_scale=False)
                 res_loss, res_metrics = losses.residual_loss(residuals)
-                flo_loss, flo_metrics = losses.flow_loss(Ps, disps, poses_est, disps_est, intrinsics, graph)
+                flo_loss, flo_metrics = losses.flow_loss(Ps, disps, poses_est, disps_est, intrinsics, graph, traj)
+
+                if total_steps > 1000:
+                    flow_grad = torch.autograd.grad(flo_loss, model.module.update.gru.convq_glo.weight, retain_graph=True)[0].norm().item()
+                    pose_grad = torch.autograd.grad(geo_loss, model.module.update.gru.convq_glo.weight, retain_graph=True)[0].norm().item()
+                    res_grad = torch.autograd.grad(res_loss, model.module.update.gru.convq_glo.weight, retain_graph=True)[0].norm().item()
+                    flow_coeff_ratios = flow_coeff_ratios[-50:] + [max(min(pose_grad/flow_grad, 10*flow_coeff), 0.1*flow_coeff)]
+                    res_coeff_ratios = res_coeff_ratios[-50:] + [max(min(pose_grad/res_grad, 10*res_coeff), 0.1*res_coeff)]
+                    res_coeff = np.mean(res_coeff_ratios)
+                    flow_coeff = np.mean(flow_coeff_ratios)
 
                 loss = args.w1 * geo_loss + args.w2 * res_loss + args.w3 * flo_loss
                 loss.backward()
@@ -118,7 +131,9 @@ def train(gpu, args):
                 disp0 = disps_est[-1][:,:,3::8,3::8].detach()
 
             metrics = {
-                "loss": loss.item()
+                "loss": loss.item(),
+                "res_coeff": res_coeff,
+                "flow_coeff": flow_coeff
             }
             metrics.update(geo_metrics)
             metrics.update(res_metrics)

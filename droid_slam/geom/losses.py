@@ -86,7 +86,7 @@ def residual_loss(residuals, gamma=0.9):
     return residual_loss, {'residual': residual_loss.item()}
 
 
-def flow_loss(Ps, disps, poses_est, disps_est, intrinsics, graph, gamma=0.9):
+def flow_loss(Ps, disps, poses_est, disps_est, intrinsics, graph, traj, gamma=0.9):
     """ optical flow loss """
 
     N = Ps.shape[1]
@@ -102,11 +102,12 @@ def flow_loss(Ps, disps, poses_est, disps_est, intrinsics, graph, gamma=0.9):
     flow_loss = 0.0
 
     for i in range(n):
+        wt_l = traj[i][-1]
         w = gamma ** (n - i - 1)
         coords1, val1 = projective_transform(poses_est[i], disps_est[i], intrinsics, ii, jj)
 
         v = (val0 * val1).squeeze(dim=-1)
-        epe = v * (coords1 - coords0).norm(dim=-1)
+        epe = v * (wt_l * (coords1 - coords0)).norm(dim=-1)
         flow_loss += w * epe.mean()
 
     epe = epe.reshape(-1)[v.reshape(-1) > 0.5]
