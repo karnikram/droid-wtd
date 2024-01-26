@@ -104,8 +104,8 @@ def train(gpu, args):
                 r = rng.random()
                 
                 intrinsics0 = intrinsics / 8.0
-                poses_est, disps_est, residuals = model(Gs, images, disp0, intrinsics0, 
-                    graph, num_steps=args.iters, fixedp=2)
+                poses_est, disps_est, residuals, traj, stats = model(Gs, images, disp0, intrinsics0, 
+                    disps[:, :, 3::8, 3::8], graph, num_steps=args.iters, fixedp=2)
 
                 geo_loss, geo_metrics = losses.geodesic_loss(Ps, poses_est, graph, do_scale=False)
                 res_loss, res_metrics = losses.residual_loss(residuals)
@@ -117,10 +117,13 @@ def train(gpu, args):
                 Gs = poses_est[-1].detach()
                 disp0 = disps_est[-1][:,:,3::8,3::8].detach()
 
-            metrics = {}
+            metrics = {
+                "loss": loss.item()
+            }
             metrics.update(geo_metrics)
             metrics.update(res_metrics)
             metrics.update(flo_metrics)
+            metrics.update(stats)
 
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
             optimizer.step()

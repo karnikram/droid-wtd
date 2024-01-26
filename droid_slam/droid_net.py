@@ -41,6 +41,14 @@ def upsample_disp(disp, mask):
     return cvx_upsample(disp, mask).view(batch, num, 8*ht, 8*wd)
 
 
+def upsample_wt(wt):
+    # perform bilinear upsampling of weights to 8 times resolution
+    batch, num, ht, wd, dim = wt.shape
+    wt = wt.view(batch*num, ht, wd, dim)
+    wt = F.interpolate(wt, scale_factor=8, mode='bilinear', align_corners=False)
+    return wt.view(batch, num, 8*ht, 8*wd, dim)
+
+
 class GraphAgg(nn.Module):
     def __init__(self):
         super(GraphAgg, self).__init__()
@@ -169,7 +177,7 @@ class DroidNet(nn.Module):
         return fmaps, net, inp
 
 
-    def forward(self, Gs, images, disps, intrinsics, graph=None, num_steps=12, fixedp=2):
+    def forward(self, Gs, images, disps, intrinsics, disps_gt, graph=None, num_steps=12, fixedp=2):
         """ Estimates SE3 or Sim3 between pair of frames """
 
         u = keyframe_indicies(graph)
@@ -186,9 +194,12 @@ class DroidNet(nn.Module):
         coords0 = pops.coords_grid(ht//8, wd//8, device=images.device)
         
         coords1, _ = pops.projective_transform(Gs, disps, intrinsics, ii, jj)
+        coords_gt, _ = pops.projective_transform(Gs, disps_gt, intrinsics, ii, jj)
         target = coords1.clone()
 
         Gs_list, disp_list, residual_list = [], [], []
+        traj = []
+
         for step in range(num_steps):
             Gs = Gs.detach()
             disps = disps.detach()
@@ -210,6 +221,9 @@ class DroidNet(nn.Module):
 
             for i in range(2):
                 Gs, disps = BA(target, weight, eta, Gs, disps, intrinsics, ii, jj, fixedp=2)
+            
+            with torch.no_grad():
+                obj = BA(target, weight, eta, Gs, disps, intrinsics, ii, jj, fixedp=2, obj_only=True)
 
             coords1, valid_mask = pops.projective_transform(Gs, disps, intrinsics, ii, jj)
             residual = (target - coords1)
@@ -218,5 +232,32 @@ class DroidNet(nn.Module):
             disp_list.append(upsample_disp(disps, upmask))
             residual_list.append(valid_mask * residual)
 
+            weight_up = upsample_wt(weight)
+            dij = (ii - jj).abs()
+            k = (dij ==1)
+            weight_l = weight_up[:, k]
 
-        return Gs_list, disp_list, residual_list
+            traj.append((coords1, Gs, disps, target, coords_gt, obj, weight, net, weight_l))
+
+
+        stats = get_stats(traj)
+        return Gs_list, disp_list, residual_list, traj, stats
+
+def get_stats(traj):
+    stats = {}
+    stats['fp_res/pose'] = (traj[-1][1].data[0] - traj[-2][1].data[0]).norm(dim=-1).detach().cpu().numpy().mean()
+    stats['fp_res/flow'] = (traj[-1][0][0, :, 1, 1,:] - traj[-2][0][0, :, 1, 1,:]).norm(dim=-1).detach().cpu().numpy().mean()
+    stats['fp_res/net'] = (traj[-1][-2] - traj[-2][-2]).norm(dim=-1).detach().cpu().numpy().mean()
+    stats['fp_res/depth'] = (traj[-1][2] - traj[-2][2]).norm(dim=-1).detach().cpu().numpy().mean()
+    stats['fp_res/weight'] = (traj[-1][-3] - traj[-2][-3]).norm(dim=-1).detach().cpu().numpy().mean()
+    
+    stats['avg_wt_8/avg'] = traj[7][-3].mean().item()
+    stats['avg_wt_8/thres02'] = (traj[7][-3] > 0.2).float().mean().item()
+    stats['avg_wt_8/thres05'] = (traj[7][-3] > 0.5).float().mean().item()
+
+    stats['obj/valid_res'] = traj[-1][-4]['valid_res']
+    stats['obj/wtd_res'] = traj[-1][-4]['wtd_res']
+    stats['wtfl/err'] = torch.sqrt((traj[-1][-3]*(traj[-1][-6] - traj[-1][-5])**2).mean(dim=-1)).mean().item()
+    stats['wtfl/inverr'] = torch.sqrt(((1-traj[-1][-3])*(traj[-1][-6] - traj[-1][-5])**2).mean(dim=-1)).mean().item()
+    stats['wtfl/flowerr'] = torch.sqrt(((traj[-1][-6] - traj[-1][-5])**2).mean(dim=-1)).mean().item()
+    return stats

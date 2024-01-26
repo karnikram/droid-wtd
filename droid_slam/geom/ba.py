@@ -28,7 +28,7 @@ def pose_retr(poses, dx, ii):
     return poses.retr(scatter_sum(dx, ii, dim=1, dim_size=poses.shape[1]))
 
 
-def BA(target, weight, eta, poses, disps, intrinsics, ii, jj, fixedp=1, rig=1):
+def BA(target, weight, eta, poses, disps, intrinsics, ii, jj, fixedp=1, rig=1, obj_only=False):
     """ Full Bundle Adjustment """
 
     B, P, ht, wd = disps.shape
@@ -41,6 +41,13 @@ def BA(target, weight, eta, poses, disps, intrinsics, ii, jj, fixedp=1, rig=1):
 
     r = (target - coords).view(B, N, -1, 1)
     w = .001 * (valid * weight).view(B, N, -1, 1)
+
+    if obj_only:
+        obj = {
+        'valid_res' : (r * valid.repeat(1, 1, 1, 1, 2).view(B, N, -1, 1)).norm(dim=-1).mean().item(),
+        'wtd_res' : (r*w).norm(dim=-1).mean().item()
+        }
+        return obj
 
     ### 2: construct linear system ###
     Ji = Ji.reshape(B, N, -1, D)
