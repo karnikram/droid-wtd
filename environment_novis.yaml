@@ -7,7 +7,6 @@ channels:
   - defaults
 dependencies:
   - pytorch-scatter
-  - torchaudio
   - torchvision
   - pytorch=1.10
   - cudatoolkit=11.3
@@ -18,3 +17,4 @@ dependencies:
   - suitesparse
   - matplotlib
   - pyyaml
+  - setuptools==59.5.0

@@ -63,7 +63,7 @@ def train(gpu, args):
     train_sampler = torch.utils.data.distributed.DistributedSampler(
         db, shuffle=True, num_replicas=args.world_size, rank=gpu)
 
-    train_loader = DataLoader(db, batch_size=args.batch, sampler=train_sampler, num_workers=2)
+    train_loader = DataLoader(db, batch_size=args.batch, sampler=train_sampler, num_workers=args.num_workers)
 
     # fetch optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-5)
@@ -150,6 +150,7 @@ if __name__ == '__main__':
     parser.add_argument('--datasets', nargs='+', help='lists of datasets for training')
     parser.add_argument('--datapath', default='datasets/TartanAir', help="path to dataset directory")
     parser.add_argument('--gpus', type=int, default=4)
+    parser.add_argument('--num_workers', type=int, default=2)
 
     parser.add_argument('--batch', type=int, default=1)
     parser.add_argument('--iters', type=int, default=15)
@@ -168,6 +169,7 @@ if __name__ == '__main__':
     parser.add_argument('--scale', action='store_true')
     parser.add_argument('--edges', type=int, default=24)
     parser.add_argument('--restart_prob', type=float, default=0.2)
+    parser.add_argument('--upsample', action='store_true')
 
     args = parser.parse_args()
 
