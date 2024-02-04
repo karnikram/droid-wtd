@@ -90,9 +90,9 @@ def flow_loss(Ps, disps, poses_est, disps_est, intrinsics, graph, traj, gamma=0.
     """ optical flow loss """
 
     N = Ps.shape[1]
-    graph = OrderedDict()
-    for i in range(N):
-        graph[i] = [j for j in range(N) if abs(i-j)==1]
+    #graph = OrderedDict()
+    #for i in range(N):
+    #    graph[i] = [j for j in range(N) if abs(i-j)==1]
 
     ii, jj, kk = graph_to_edge_list(graph)
     coords0, val0 = projective_transform(Ps, disps, intrinsics, ii, jj)
