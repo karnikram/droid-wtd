@@ -102,7 +102,7 @@ def flow_loss(Ps, disps, poses_est, disps_est, intrinsics, graph, traj, gamma=0.
     flow_loss = 0.0
 
     for i in range(n):
-        wt_l = traj[i][-1]
+        wt_l = traj[i][-1].detach()
         w = gamma ** (n - i - 1)
         coords1, val1 = projective_transform(poses_est[i], disps_est[i], intrinsics, ii, jj)
 

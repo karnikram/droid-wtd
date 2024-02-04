@@ -232,10 +232,11 @@ class DroidNet(nn.Module):
             disp_list.append(upsample_disp(disps, upmask))
             residual_list.append(valid_mask * residual)
 
-            weight_up = upsample_wt(weight)
-            dij = (ii - jj).abs()
-            k = (dij ==1)
-            weight_l = weight_up[:, k]
+            #weight_up = upsample_wt(weight)
+            #dij = (ii - jj).abs()
+            #k = (dij ==1)
+            #weight_l = weight_up[:, k]
+            weight_l = upsample_wt(weight)
 
             traj.append((coords1, Gs, disps, target, coords_gt, obj, weight, net, weight_l))
 
@@ -250,6 +251,8 @@ def get_stats(traj):
     stats['fp_res/net'] = (traj[-1][-2] - traj[-2][-2]).norm(dim=-1).detach().cpu().numpy().mean()
     stats['fp_res/depth'] = (traj[-1][2] - traj[-2][2]).norm(dim=-1).detach().cpu().numpy().mean()
     stats['fp_res/weight'] = (traj[-1][-3] - traj[-2][-3]).norm(dim=-1).detach().cpu().numpy().mean()
+    stats['fp_res/weight_l'] = (traj[-1][-1] - traj[-2][-1]).norm(dim=-1).detach().cpu().numpy().mean()
+
     
     stats['avg_wt_8/avg'] = traj[7][-3].mean().item()
     stats['avg_wt_8/thres02'] = (traj[7][-3] > 0.2).float().mean().item()

@@ -124,7 +124,7 @@ def train(gpu, args):
                     res_coeff = np.mean(res_coeff_ratios)
                     flow_coeff = np.mean(flow_coeff_ratios)
 
-                loss = args.w1 * geo_loss + args.w2 * res_loss + args.w3 * flo_loss
+                loss = args.w1 * geo_loss + args.w2 * res_loss * res_coeff + args.w3 * flo_loss * flow_coeff
                 loss.backward()
 
                 Gs = poses_est[-1].detach()
