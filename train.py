@@ -112,7 +112,7 @@ def train(gpu, args):
                     disps[:, :, 3::8, 3::8], graph, num_steps=args.iters, fixedp=2)
 
                 geo_loss, geo_metrics = losses.geodesic_loss(Ps, poses_est, graph, do_scale=False)
-                res_loss, res_metrics = losses.residual_loss(residuals)
+                res_loss, res_metrics = losses.residual_loss(residuals, traj)
                 flo_loss, flo_metrics = losses.flow_loss(Ps, disps, poses_est, disps_est, intrinsics, graph, traj)
 
                 #if total_steps > 1000 and total_steps % 20 == 0:

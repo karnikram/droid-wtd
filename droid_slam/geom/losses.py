@@ -74,14 +74,15 @@ def geodesic_loss(Ps, Gs, graph, gamma=0.9, do_scale=True):
     return geodesic_loss, metrics
 
 
-def residual_loss(residuals, gamma=0.9):
+def residual_loss(residuals, traj, gamma=0.9):
     """ loss on system residuals """
     residual_loss = 0.0
     n = len(residuals)
 
     for i in range(n):
+        wt_l = traj[i][-3].detach()
         w = gamma ** (n - i - 1)
-        residual_loss += w * residuals[i].abs().mean()
+        residual_loss += w * (wt_l * residuals[i]).norm(dim=-1, p=1).mean()
 
     return residual_loss, {'residual': residual_loss.item()}
 
