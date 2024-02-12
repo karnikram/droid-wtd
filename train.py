@@ -115,22 +115,22 @@ def train(gpu, args):
                 res_loss, res_metrics = losses.residual_loss(residuals)
                 flo_loss, flo_metrics = losses.flow_loss(Ps, disps, poses_est, disps_est, intrinsics, graph, traj)
 
-                if total_steps > 1000:
-                    flow_grad = torch.autograd.grad(flo_loss, model.module.update.gru.convq_glo.weight, retain_graph=True)[0].norm().item()
-                    pose_grad = torch.autograd.grad(geo_loss, model.module.update.gru.convq_glo.weight, retain_graph=True)[0].norm().item()
-                    res_grad = torch.autograd.grad(res_loss, model.module.update.gru.convq_glo.weight, retain_graph=True)[0].norm().item()
-                    try:
-                        flow_coeff_ratios = flow_coeff_ratios[-50:] + [max(min(pose_grad/flow_grad, 10*flow_coeff), 0.1*flow_coeff)]
-                    except:
-                        flow_coeff_ratios = flow_coeff_ratios[-50:] + [max(10*flow_coeff, 0.1*flow_coeff)]
-                    try:
-                        res_coeff_ratios = res_coeff_ratios[-50:] + [max(min(pose_grad/res_grad, 10*res_coeff), 0.1*res_coeff)]
-                    except:
-                        res_coeff_ratios = res_coeff_ratios[-50:] + [max(10*res_coeff, 0.1*res_coeff)]
-                    res_coeff = np.mean(res_coeff_ratios)
-                    flow_coeff = np.mean(flow_coeff_ratios)
+                #if total_steps > 1000 and total_steps % 20 == 0:
+                #    flow_grad = torch.autograd.grad(flo_loss, model.module.update.gru.convq_glo.weight, retain_graph=True)[0].norm().item()
+                #    pose_grad = torch.autograd.grad(geo_loss, model.module.update.gru.convq_glo.weight, retain_graph=True)[0].norm().item()
+                #    res_grad = torch.autograd.grad(res_loss, model.module.update.gru.convq_glo.weight, retain_graph=True)[0].norm().item()
+                #    try:
+                #        flow_coeff_ratios = flow_coeff_ratios[-50:] + [max(min(pose_grad/flow_grad, 10*flow_coeff), 0.1*flow_coeff)]
+                #    except:
+                #        flow_coeff_ratios = flow_coeff_ratios[-50:] + [max(10*flow_coeff, 0.1*flow_coeff)]
+                #    try:
+                #        res_coeff_ratios = res_coeff_ratios[-50:] + [max(min(pose_grad/res_grad, 10*res_coeff), 0.1*res_coeff)]
+                #    except:
+                #        res_coeff_ratios = res_coeff_ratios[-50:] + [max(10*res_coeff, 0.1*res_coeff)]
+                #    res_coeff = np.mean(res_coeff_ratios)
+                #    flow_coeff = np.mean(flow_coeff_ratios)
 
-                loss = args.w1 * geo_loss + args.w2 * res_loss * res_coeff + args.w3 * flo_loss * flow_coeff
+                loss = args.w1 * geo_loss + args.w2 * res_loss + args.w3 * flo_loss
                 loss.backward()
 
                 Gs = poses_est[-1].detach()
