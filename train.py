@@ -75,8 +75,10 @@ def train(gpu, args):
     total_steps = 0
     flow_coeff = 1.0
     res_coeff = 1.0
+    ro_coeff = 1.0
     flow_coeff_ratios = []
     res_coeff_ratios = []
+    ro_coeff_ratios = []
 
     while should_keep_training:
         for i_batch, item in enumerate(train_loader):
@@ -111,11 +113,11 @@ def train(gpu, args):
                 poses_est, disps_est, residuals, traj, stats = model(Gs, images, disp0, intrinsics0, 
                     disps[:, :, 3::8, 3::8], graph, num_steps=args.iters, fixedp=2)
 
-                geo_loss, geo_metrics = losses.geodesic_loss(Ps, poses_est, graph, do_scale=False)
+                geo_loss, geo_metrics, tr_loss, ro_loss = losses.geodesic_loss(Ps, poses_est, graph, ro_coeff, do_scale=False)
                 res_loss, res_metrics = losses.residual_loss(residuals, traj)
                 flo_loss, flo_metrics = losses.flow_loss(Ps, disps, poses_est, disps_est, intrinsics, graph, traj)
 
-                #if total_steps > 1000 and total_steps % 20 == 0:
+                if total_steps > 1000 and total_steps % 20 == 0:
                 #    flow_grad = torch.autograd.grad(flo_loss, model.module.update.gru.convq_glo.weight, retain_graph=True)[0].norm().item()
                 #    pose_grad = torch.autograd.grad(geo_loss, model.module.update.gru.convq_glo.weight, retain_graph=True)[0].norm().item()
                 #    res_grad = torch.autograd.grad(res_loss, model.module.update.gru.convq_glo.weight, retain_graph=True)[0].norm().item()
@@ -129,6 +131,13 @@ def train(gpu, args):
                 #        res_coeff_ratios = res_coeff_ratios[-50:] + [max(10*res_coeff, 0.1*res_coeff)]
                 #    res_coeff = np.mean(res_coeff_ratios)
                 #    flow_coeff = np.mean(flow_coeff_ratios)
+                    tr_grad = torch.autograd.grad(tr_loss, model.module.update.gru.convq_glo.weight, retain_graph=True)[0].norm().item()
+                    ro_grad = torch.autograd.grad(ro_loss, model.module.update.gru.convq_glo.weight, retain_graph=True)[0].norm().item()
+                    try:
+                        ro_coeff_ratios = ro_coeff_ratios[-50:] + [max(min(tr_grad/ro_grad, 10*ro_coeff), 0.1*ro_coeff)]
+                    except:
+                        ro_coeff_ratios = ro_coeff_ratios[-50:] + [max(10*ro_coeff, 0.1*ro_coeff)]
+                    ro_coeff = np.mean(ro_coeff_ratios)
 
                 loss = args.w1 * geo_loss + args.w2 * res_loss + args.w3 * flo_loss
                 loss.backward()
@@ -139,7 +148,8 @@ def train(gpu, args):
             metrics = {
                 "loss": loss.item(),
                 "res_coeff": res_coeff,
-                "flow_coeff": flow_coeff
+                "flow_coeff": flow_coeff,
+                "ro_coeff": ro_coeff
             }
             metrics.update(geo_metrics)
             metrics.update(res_metrics)

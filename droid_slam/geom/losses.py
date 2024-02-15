@@ -27,7 +27,7 @@ def fit_scale(Ps, Gs):
     return s
 
 
-def geodesic_loss(Ps, Gs, graph, gamma=0.9, do_scale=True):
+def geodesic_loss(Ps, Gs, graph, ro_coeff, gamma=0.9, do_scale=True):
     """ Loss function for training network """
 
     # relative pose
@@ -36,6 +36,10 @@ def geodesic_loss(Ps, Gs, graph, gamma=0.9, do_scale=True):
 
     n = len(Gs)
     geodesic_loss = 0.0
+    tr_list = []
+    ro_list = []
+    ro_loss = 0.0
+    tr_loss = 0.0
 
     for i in range(n):
         w = gamma ** (n - i - 1)
@@ -53,13 +57,21 @@ def geodesic_loss(Ps, Gs, graph, gamma=0.9, do_scale=True):
             geodesic_loss += w * (
                 tau.norm(dim=-1).mean() + 
                 phi.norm(dim=-1).mean())
+            tr_list.append(tau.norm(dim=-1))
+            ro_list.append(phi.norm(dim=-1))
 
         elif isinstance(dG, Sim3):
             tau, phi, sig = d.split([3,3,1], dim=-1)
             geodesic_loss += w * (
                 tau.norm(dim=-1).mean() + 
-                phi.norm(dim=-1).mean() + 
+                ro_coeff * phi.norm(dim=-1).mean() + 
                 0.05 * sig.norm(dim=-1).mean())
+            tr_list.append(tau.norm(dim=-1))
+            ro_list.append(phi.norm(dim=-1))
+
+        if i >=2:
+            tr_loss += tr_list[-1].mean()
+            ro_loss += ro_list[-1].mean()
             
         dE = Sim3(dG * dP.inv()).detach()
         r_err, t_err, s_err = pose_metrics(dE)
@@ -68,10 +80,12 @@ def geodesic_loss(Ps, Gs, graph, gamma=0.9, do_scale=True):
         'rot_error': r_err.mean().item(),
         'tr_error': t_err.mean().item(),
         'bad_rot': (r_err < .1).float().mean().item(),
+        'bad_rot2': (r_err < .02).float().mean().item(),
         'bad_tr': (t_err < .01).float().mean().item(),
+        'bad_tr2': (t_err < .002).float().mean().item()
     }
 
-    return geodesic_loss, metrics
+    return geodesic_loss, metrics, tr_loss, ro_loss
 
 
 def residual_loss(residuals, traj, gamma=0.9):
@@ -82,7 +96,8 @@ def residual_loss(residuals, traj, gamma=0.9):
     for i in range(n):
         wt_l = traj[i][-3].detach()
         w = gamma ** (n - i - 1)
-        residual_loss += w * (wt_l * residuals[i]).norm(dim=-1, p=1).mean()
+        #residual_loss += w * (wt_l * residuals[i]).norm(dim=-1, p=1).mean()
+        residual_loss += w * residuals[i].abs().mean() 
 
     return residual_loss, {'residual': residual_loss.item()}
 
