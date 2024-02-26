@@ -54,18 +54,20 @@ def geodesic_loss(Ps, Gs, graph, ro_coeff, gamma=0.9, do_scale=True):
 
         if isinstance(dG, SE3):
             tau, phi = d.split([3,3], dim=-1)
-            geodesic_loss += w * (
-                tau.norm(dim=-1).mean() + 
-                ro_coeff * phi.norm(dim=-1).mean())
+            if i >= 2:
+                geodesic_loss += w * (
+                    tau.norm(dim=-1).mean() + 
+                    ro_coeff * phi.norm(dim=-1).mean())
             tr_list.append(w * tau.norm(dim=-1))
             ro_list.append(w * phi.norm(dim=-1))
 
         elif isinstance(dG, Sim3):
             tau, phi, sig = d.split([3,3,1], dim=-1)
-            geodesic_loss += w * (
-                tau.norm(dim=-1).mean() + 
-                ro_coeff * phi.norm(dim=-1).mean() + 
-                0.05 * sig.norm(dim=-1).mean())
+            if i >= 2:
+                geodesic_loss += w * (
+                    tau.norm(dim=-1).mean() + 
+                    ro_coeff * phi.norm(dim=-1).mean() + 
+                    0.05 * sig.norm(dim=-1).mean())
             tr_list.append(w * tau.norm(dim=-1))
             ro_list.append(w * phi.norm(dim=-1))
 
@@ -95,7 +97,8 @@ def residual_loss(residuals, traj, gamma=0.9):
     for i in range(n):
         wt_l = traj[i][-3].detach()
         w = gamma ** (n - i - 1)
-        residual_loss += w * (wt_l * residuals[i]).norm(dim=-1, p=1).mean()
+        if i >= 2:
+            residual_loss += w * (wt_l * residuals[i]).norm(dim=-1, p=1).mean()
         #residual_loss += w * residuals[i].abs().mean() 
 
     return residual_loss, {'residual': residual_loss.item()}
