@@ -71,8 +71,9 @@ def geodesic_loss(Ps, Gs, graph, ro_coeff, gamma=0.9, do_scale=True):
             tr_list.append(w * tau.norm(dim=-1))
             ro_list.append(w * phi.norm(dim=-1))
 
-        tr_loss += tr_list[-1].mean()
-        ro_loss += ro_list[-1].mean()
+        if i>=2 :
+            tr_loss += tr_list[-1].mean()
+            ro_loss += ro_list[-1].mean()
             
         dE = Sim3(dG * dP.inv()).detach()
         r_err, t_err, s_err = pose_metrics(dE)
