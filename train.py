@@ -56,6 +56,19 @@ def train(gpu, args):
 
     if args.ckpt is not None:
         model.load_state_dict(torch.load(args.ckpt))
+        start_epoch = int(re.findall(r'\d+', args.ckpt)[-1])
+        print('Starting from epoch', start_epoch)
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-5)
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,
+            args.lr, args.steps, pct_start=0.01, cycle_momentum=False)
+        optimizer.load_state_dict(torch.load(args.ckpt.replace('.pth', '_optim.pth')))
+        scheduler.load_state_dict(torch.load(args.ckpt.replace('.pth', '_sched.pth')))
+    
+    else:
+        start_epoch = 0
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-5)
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,
+            args.lr, args.steps, pct_start=0.01, cycle_momentum=False)
 
     # fetch dataloader
     db = dataset_factory(['tartan'], datapath=args.datapath, n_frames=args.n_frames, fmin=args.fmin, fmax=args.fmax)
@@ -65,14 +78,9 @@ def train(gpu, args):
 
     train_loader = DataLoader(db, batch_size=args.batch, sampler=train_sampler, num_workers=args.num_workers)
 
-    # fetch optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-5)
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, 
-        args.lr, args.steps, pct_start=0.01, cycle_momentum=False)
-
     logger = Logger(args.name, scheduler)
     should_keep_training = True
-    total_steps = 0
+    total_steps = start_epoch
     flow_coeff = 1.0
     res_coeff = 1.0
     ro_coeff = 1.0
@@ -167,7 +175,11 @@ def train(gpu, args):
 
             if total_steps % 10000 == 0 and gpu == 0:
                 PATH = 'checkpoints/%s_%06d.pth' % (args.name, total_steps)
+                OPTIM_PATH = 'checkpoints/%s_%06d_optim.pth' % (args.name, total_steps)
+                SCHED_PATH = 'checkpoints/%s_%06d_sched.pth' % (args.name, total_steps)
                 torch.save(model.state_dict(), PATH)
+                torch.save(optimizer.state_dict(), OPTIM_PATH)
+                torch.save(scheduler.state_dict(), SCHED_PATH)
 
             if total_steps >= args.steps:
                 should_keep_training = False
